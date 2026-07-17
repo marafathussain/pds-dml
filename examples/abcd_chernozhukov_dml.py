@@ -1,9 +1,9 @@
 """
-ABCD analysis with Chernozhukov PLR-DML (6 improvements).
+ABCD analysis with baseline Chernozhukov-style DML
+(ridge nuisances, all-except-i adjustment, residual SE).
 
-Pipeline per outcome:
-  410 predictors -> top-K by correlation -> post-double-selection PLR-DML
-  -> influence-function SE -> global Bonferroni -> sensitivity metrics
+Matched to PDS-DML for fair comparison:
+  410 predictors -> top-K by correlation -> baseline DML per candidate
 
 Usage:
     python examples/abcd_chernozhukov_dml.py --three-outcomes
@@ -30,9 +30,8 @@ from causal_inference.abcd_data import (
     select_top_correlated_features,
 )
 from causal_inference.chernozhukov_dml import (
-    ESTIMAND_DESCRIPTION,
     apply_study_bonferroni,
-    run_plr_dml_on_candidates,
+    estimate_vanilla_dml,
 )
 DEFAULT_CSV = ROOT / "data" / "ABCD_ML_ready_reduced_final_with_parent_ed.csv"
 DEFAULT_OUTPUT = ROOT / "outputs" / "abcd_chernozhukov_dml"
@@ -40,6 +39,36 @@ DEFAULT_OUTPUT = ROOT / "outputs" / "abcd_chernozhukov_dml"
 
 def _safe_name(name: str) -> str:
     return name.replace("/", "_").replace("\\", "_")[:120]
+
+
+def run_vanilla_on_candidates(
+    X_pool: pd.DataFrame,
+    y: pd.Series,
+    candidate_features: list[str],
+    n_folds: int = 3,
+    random_state: int = 42,
+    verbose: bool = True,
+) -> pd.DataFrame:
+    pool_names = list(X_pool.columns)
+    X_arr = X_pool.values.astype(float)
+    y_arr = y.values.astype(float)
+
+    rows = []
+    for i, feat in enumerate(candidate_features):
+        if feat not in pool_names:
+            continue
+        if verbose:
+            print(f"  [{i + 1}/{len(candidate_features)}] {feat[:70]}...")
+        rows.append(
+            estimate_vanilla_dml(
+                X_arr, y_arr, pool_names, feat, n_folds=n_folds, random_state=random_state
+            )
+        )
+
+    df = pd.DataFrame(rows)
+    if len(df):
+        df = df.sort_values("p_value", ascending=True, na_position="last").reset_index(drop=True)
+    return df
 
 
 def run_outcome(
@@ -68,10 +97,10 @@ def run_outcome(
     print(f"  Subjects: {len(y)}")
     print(f"  Full pool: {len(all_features)} predictors")
     print(f"  DML candidates (top-{top_k} correlation): {len(candidates)}")
-    print(f"  Estimand: {ESTIMAND_DESCRIPTION[:80]}...")
+    print("  Method: vanilla ridge DML, all-except-i adjustment")
 
     t0 = time.time()
-    results = run_plr_dml_on_candidates(
+    results = run_vanilla_on_candidates(
         X_pool, y, candidates, n_folds=n_folds, random_state=42, verbose=True
     )
     elapsed = time.time() - t0
@@ -84,6 +113,7 @@ def run_outcome(
     meta = {
         "outcome": outcome,
         "outcome_label": ABCD_OUTCOME_LABELS.get(outcome, outcome),
+        "method": "chernozhukov_dml",
         "n_subjects": len(y),
         "n_pool": len(all_features),
         "top_k": top_k,
@@ -103,12 +133,12 @@ def run_outcome(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="ABCD Chernozhukov PLR-DML")
+    parser = argparse.ArgumentParser(description="ABCD vanilla DML (matched to PDS-DML)")
     parser.add_argument("--csv", type=Path, default=DEFAULT_CSV)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--three-outcomes", action="store_true")
     parser.add_argument("--outcome", type=str, default=None)
-    parser.add_argument("--top-k", type=int, default=50, help="Correlation prefilter (default 50 for speed)")
+    parser.add_argument("--top-k", type=int, default=50)
     parser.add_argument("--n-folds", type=int, default=3)
     args = parser.parse_args()
 
@@ -116,15 +146,10 @@ def main():
         print(f"CSV not found: {args.csv}")
         sys.exit(1)
 
-    if args.three_outcomes:
-        outcomes = ABCD_THREE_OUTCOMES
-    elif args.outcome:
-        outcomes = [args.outcome]
-    else:
-        outcomes = ABCD_THREE_OUTCOMES
+    outcomes = ABCD_THREE_OUTCOMES if (args.three_outcomes or not args.outcome) else [args.outcome]
 
     print("=" * 72)
-    print("  CHERNOZHUKOV PLR-DML — ABCD")
+    print("  VANILLA DML — ABCD")
     print("=" * 72)
     print(f"  Outcomes: {len(outcomes)}")
     print(f"  top-K prefilter: {args.top_k}")
@@ -144,6 +169,7 @@ def main():
         print(f"\n  {ABCD_OUTCOME_LABELS.get(outcome, outcome)}: Bonferroni-significant = {n_bonf}")
 
     summary = {
+        "method": "chernozhukov_dml",
         "outcomes": outcomes,
         "top_k": args.top_k,
         "n_folds": args.n_folds,
@@ -162,7 +188,6 @@ def main():
             "n_nominal_05": int(df["significant_05"].sum()),
             "n_bonferroni": int(sig.shape[0]),
             "bonferroni_features": sig["feature"].tolist(),
-            "top_theta": df.nlargest(5, "theta", keep="all")[["feature", "theta", "p_value"]].to_dict("records"),
         }
 
     summary_path = args.output_dir / "study_summary.json"

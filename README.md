@@ -63,23 +63,23 @@ The private ABCD dataset is not distributed. Place a compatible CSV under
 `data/` or pass a local path with `--csv`.
 
 ```bash
+python examples/abcd_pds_dml.py --three-outcomes --top-k 50 --n-folds 3
 python examples/abcd_chernozhukov_dml.py --three-outcomes --top-k 50 --n-folds 3
-python examples/abcd_vanilla_dml.py --three-outcomes --top-k 50 --n-folds 3
 ```
 
 ## Layout
 
 ```text
 causal_inference/
-  chernozhukov_dml.py       PDS-DML and baseline PLR-DML
+  chernozhukov_dml.py       PDS-DML and baseline PLR-DML estimators
   dml.py                    reusable DML estimator
   synthetic_dml_ablation.py
   abcd_data.py              optional cohort input preparation
   multiple_testing.py
 examples/
   dml_ablation_benchmark.py
-  abcd_chernozhukov_dml.py
-  abcd_vanilla_dml.py
+  abcd_pds_dml.py           ABCD screening with PDS-DML
+  abcd_chernozhukov_dml.py  ABCD screening with baseline Chernozhukov DML
   generate_paper_figures.py
 ```
 

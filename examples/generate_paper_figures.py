@@ -17,8 +17,8 @@ from scipy.stats import false_discovery_control
 
 ROOT = Path(__file__).resolve().parents[1]
 FIG_DIR = ROOT / "figures"
-PDS_DIR = ROOT / "outputs" / "abcd_chernozhukov_dml"
-BASE_DIR = ROOT / "outputs" / "abcd_vanilla_dml"
+PDS_DIR = ROOT / "outputs" / "abcd_pds_dml"
+BASE_DIR = ROOT / "outputs" / "abcd_chernozhukov_dml"
 
 OUTCOME_ORDER = [
     "Cognition Total Composite Score Age-Corrected Standard Score",
@@ -27,8 +27,8 @@ OUTCOME_ORDER = [
 ]
 OUTCOME_LABELS = ["Total composite", "Flanker", "DCCS"]
 METHODS = [
-    ("Baseline DML", BASE_DIR, "vanilla_dml_results.csv"),
-    ("PDS-DML", PDS_DIR, "chernozhukov_dml_results.csv"),
+    ("Baseline DML", BASE_DIR, "chernozhukov_dml_results.csv"),
+    ("PDS-DML", PDS_DIR, "pds_dml_results.csv"),
 ]
 
 COLOR_OTHER = "#B0BEC5"
