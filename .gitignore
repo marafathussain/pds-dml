@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments
+venv/
+env/
+.env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local outputs (keep repo clean for release)
+outputs/
+results/
+figures/
+*.png
+*.pdf
+*.log
+
+# Large study data (not shipped with this repo)
+data/
+ABCD_data/
+
+# Paper materials (code-only GitHub release)
+manuscript.tex
+references.bib
+*.bbl
+*.aux
+*.blg
+*.out
+*.synctex.gz
+PedAItrics*.pdf
