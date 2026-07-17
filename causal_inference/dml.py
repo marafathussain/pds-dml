@@ -23,15 +23,25 @@ from sklearn.linear_model import LinearRegression, Ridge
 from sklearn.model_selection import KFold
 from typing import Callable, Dict, List, Optional, Union
 
-from .utils import compute_confidence_interval
-
-
 AdjustmentSpec = Union[
     None,
     str,
     Dict[str, List[str]],
     Callable[[str, List[str]], List[str]],
 ]
+
+
+def _compute_confidence_interval(
+    data: np.ndarray, confidence: float = 0.95
+) -> tuple[float, float]:
+    """Compute a Student-t confidence interval for a sample mean."""
+    n = len(data)
+    if n < 2:
+        mean = float(np.mean(data))
+        return mean, mean
+    mean = float(np.mean(data))
+    half_width = float(stats.sem(data) * stats.t.ppf((1 + confidence) / 2, n - 1))
+    return mean - half_width, mean + half_width
 
 
 def _feature_matrix(X):
@@ -310,7 +320,7 @@ class DoubleMachineLearning:
                 self.n_bootstrap,
                 self.random_state,
             )
-            ci_low, ci_high = compute_confidence_interval(
+            ci_low, ci_high = _compute_confidence_interval(
                 boot_thetas, self.confidence_level
             )
             std = float(np.std(boot_thetas, ddof=1)) if len(boot_thetas) > 1 else np.nan

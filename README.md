@@ -1,123 +1,89 @@
-# CIA-DML / PDS-DML
+# PDS-DML
 
-Code for **Conditional Intervention Analysis (CIA)** and **post-double-selection double machine learning (PDS-DML)** for trustworthy multimodal feature screening in pediatric neuroimaging cohorts.
+Code for post-double-selection double machine learning (PDS-DML), a workflow
+for trustworthy feature screening in high-dimensional multimodal tables.
 
-This repository contains the Python library and examples only (no manuscript or private ABCD data).
-
-## Status
-
-| Component | Status |
-|-----------|--------|
-| CIA core (`ConditionalInterventionAnalysis`) | ported |
-| Baselines (correlation, ANCOVA, permutation, conditional PI, linear DML) | ported |
-| Synthetic validation example | included |
-| CIA-DML hybrid (`CIA_DML_Pipeline`: screen with CIA, confirm with DML) | implemented |
-| ABCD cohort pipeline | not included (add locally under `data/`) |
+The implementation combines sparse adjustment selection, post-Lasso nuisance
+models, cross-fitting, influence-function standard errors, global Bonferroni
+control, and E-value sensitivity summaries. This repository contains code
+only; the manuscript and private ABCD data are not included.
 
 ## Install
 
 ```bash
 python -m venv venv
-venv\Scripts\activate        # Windows
+venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-## Quick start
+## Synthetic validation
+
+Run the six paper ablations:
 
 ```bash
-# Interactive demo (synthetic data, regression + classification)
-python demo_run.py
-
-# Paper-style synthetic benchmark (CIA vs baselines)
-python examples/synthetic_validation.py
-python examples/synthetic_validation.py --quick
-
-# Two-stage CIA-DML hybrid
-python examples/hybrid_validation.py
-python examples/hybrid_validation.py --quick
+python examples/dml_ablation_benchmark.py
+python examples/dml_ablation_benchmark.py --quick
 ```
 
-Outputs go to `outputs/` (gitignored).
+Outputs are written under `outputs/`, which is gitignored.
 
-## Package layout
-
-```
-cia-dml/
-├── causal_inference/          # Core library
-│   ├── conditional_intervention.py
-│   ├── outcome_model.py
-│   ├── dml.py                 # DoubleMachineLearning (mentor design)
-│   ├── hybrid.py              # CIA_DML_Pipeline (two-stage hybrid)
-│   ├── baselines.py           # includes linear_dml_importance_ranking
-│   ├── utils.py
-│   ├── multiple_testing.py
-│   └── abcd_data.py           # optional; requires local ABCD CSV + FIBE JSON
-├── demo_run.py
-├── examples/
-│   └── synthetic_validation.py
-└── docs/
-    └── THEOREM_AND_PROOF.md
-```
-
-## CIA-DML hybrid (two-stage pipeline)
+## Basic usage
 
 ```python
-from causal_inference import CIA_DML_Pipeline
+from causal_inference import estimate_plr_dml
 
-pipeline = CIA_DML_Pipeline(
-    screen_alpha=0.05,       # Stage 1: CIA p-value threshold
-    screen_top_k=10,         # Also shortlist top-10 by |CIA effect|
-    confirm_alpha=0.05,      # Stage 2: DML confirmation threshold
-    nuisance_model="ridge",
-    n_bootstrap=200,
-    random_state=42,
+result = estimate_plr_dml(
+    X_pool=X,
+    y=y,
+    pool_names=list(X.columns),
+    target_name="feature_of_interest",
+    n_folds=3,
 )
-pipeline.fit(X, y)
-pipeline.summary()
-
-confirmed = pipeline.get_confirmed_features()  # passed both stages
+print(result["theta"], result["standard_error"], result["p_value"])
 ```
 
-**Stage 1 (CIA):** Screen all features for conditional interventional evidence.
-**Stage 2 (DML):** Confirm shortlisted features with debiased partial-linear effects.
-
-A feature is *confirmed* only when both CIA screening and DML confirmation pass.
-
-## DML usage (standalone)
+For a reusable estimator with configurable nuisance models:
 
 ```python
 from causal_inference import DoubleMachineLearning
 
 dml = DoubleMachineLearning(
     n_folds=5,
-    nuisance_model="ridge",   # 'linear', 'ridge', or 'rf'
-    n_bootstrap=200,          # bootstrap CIs; set 0 for analytic SE
+    nuisance_model="ridge",
+    n_bootstrap=200,
     random_state=42,
 )
-
-# Default: adjust for all features except i
 dml.fit(X, y)
 dml.summary()
-
-# Custom adjustment set per feature (e.g., confounders only)
-adjustment = {
-    "parent_education": ["income", "neighborhood"],
-    "cortical_thickness": ["age", "sex"],
-}
-dml = DoubleMachineLearning(adjustment_spec=adjustment)
-dml.fit(X, y)
 ```
 
-## Next steps
+## ABCD examples
 
-1. Side-by-side benchmarking on ABCD (add local data under `data/`).
-2. Compare adjustment modes: all features vs confounder-only subsets in Stage 2.
-3. Nonlinear synthetic DGP where CIA screening outperforms linear DML alone.
+The private ABCD dataset is not distributed. Place a compatible CSV under
+`data/` or pass a local path with `--csv`.
+
+```bash
+python examples/abcd_chernozhukov_dml.py --three-outcomes --top-k 50 --n-folds 3
+python examples/abcd_vanilla_dml.py --three-outcomes --top-k 50 --n-folds 3
+```
+
+## Layout
+
+```text
+causal_inference/
+  chernozhukov_dml.py       PDS-DML and baseline PLR-DML
+  dml.py                    reusable DML estimator
+  synthetic_dml_ablation.py
+  abcd_data.py              optional cohort input preparation
+  multiple_testing.py
+examples/
+  dml_ablation_benchmark.py
+  abcd_chernozhukov_dml.py
+  abcd_vanilla_dml.py
+  generate_paper_figures.py
+```
 
 ## Citation
 
-If you use this code, cite the associated workshop paper (details upon acceptance).
-
-## Data
-
-ABCD CSV and feature lists are not included. Place local files under `data/` and pass paths via the example script CLI flags.
+Please cite the associated workshop paper; citation details will be added
+after acceptance.

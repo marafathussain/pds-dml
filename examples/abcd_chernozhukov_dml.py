@@ -6,8 +6,8 @@ Pipeline per outcome:
   -> influence-function SE -> global Bonferroni -> sensitivity metrics
 
 Usage:
-    python examples/abcd_chernozhukov_dml.py --mirasol-three
-    python examples/abcd_chernozhukov_dml.py --mirasol-three --top-k 50 --n-folds 3
+    python examples/abcd_chernozhukov_dml.py --three-outcomes
+    python examples/abcd_chernozhukov_dml.py --three-outcomes --top-k 50 --n-folds 3
 """
 
 from __future__ import annotations
@@ -24,7 +24,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from causal_inference.abcd_data import (
-    prepare_all_cia_features,
+    ABCD_OUTCOME_LABELS,
+    ABCD_THREE_OUTCOMES,
+    prepare_all_features,
     select_top_correlated_features,
 )
 from causal_inference.chernozhukov_dml import (
@@ -32,8 +34,6 @@ from causal_inference.chernozhukov_dml import (
     apply_study_bonferroni,
     run_plr_dml_on_candidates,
 )
-from examples.abcd_hybrid_analysis import MIRASOL_THREE_OUTCOMES, MIRASOL_OUTCOME_LABELS
-
 DEFAULT_CSV = ROOT / "data" / "ABCD_ML_ready_reduced_final_with_parent_ed.csv"
 DEFAULT_OUTPUT = ROOT / "outputs" / "abcd_chernozhukov_dml"
 
@@ -50,12 +50,12 @@ def run_outcome(
     n_folds: int,
 ) -> pd.DataFrame:
     print(f"\n{'=' * 72}")
-    print(f"  {MIRASOL_OUTCOME_LABELS.get(outcome, outcome)}")
+    print(f"  {ABCD_OUTCOME_LABELS.get(outcome, outcome)}")
     print(f"  Outcome column: {outcome}")
     print(f"{'=' * 72}")
 
     df = pd.read_csv(csv_path)
-    all_features, prep = prepare_all_cia_features(df.columns.tolist(), outcome)
+    all_features, prep = prepare_all_features(df.columns.tolist(), outcome)
     candidates, ranking, prefilter = select_top_correlated_features(
         df, outcome, all_features, top_k=top_k
     )
@@ -83,7 +83,7 @@ def run_outcome(
 
     meta = {
         "outcome": outcome,
-        "outcome_label": MIRASOL_OUTCOME_LABELS.get(outcome, outcome),
+        "outcome_label": ABCD_OUTCOME_LABELS.get(outcome, outcome),
         "n_subjects": len(y),
         "n_pool": len(all_features),
         "top_k": top_k,
@@ -106,7 +106,7 @@ def main():
     parser = argparse.ArgumentParser(description="ABCD Chernozhukov PLR-DML")
     parser.add_argument("--csv", type=Path, default=DEFAULT_CSV)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
-    parser.add_argument("--mirasol-three", action="store_true")
+    parser.add_argument("--three-outcomes", action="store_true")
     parser.add_argument("--outcome", type=str, default=None)
     parser.add_argument("--top-k", type=int, default=50, help="Correlation prefilter (default 50 for speed)")
     parser.add_argument("--n-folds", type=int, default=3)
@@ -116,12 +116,12 @@ def main():
         print(f"CSV not found: {args.csv}")
         sys.exit(1)
 
-    if args.mirasol_three:
-        outcomes = MIRASOL_THREE_OUTCOMES
+    if args.three_outcomes:
+        outcomes = ABCD_THREE_OUTCOMES
     elif args.outcome:
         outcomes = [args.outcome]
     else:
-        outcomes = MIRASOL_THREE_OUTCOMES
+        outcomes = ABCD_THREE_OUTCOMES
 
     print("=" * 72)
     print("  CHERNOZHUKOV PLR-DML — ABCD")
@@ -141,7 +141,7 @@ def main():
         out_dir = args.output_dir / _safe_name(outcome)
         df.to_csv(out_dir / "chernozhukov_dml_results.csv", index=False)
         n_bonf = int(df["significant_global_bonferroni"].sum())
-        print(f"\n  {MIRASOL_OUTCOME_LABELS.get(outcome, outcome)}: Bonferroni-significant = {n_bonf}")
+        print(f"\n  {ABCD_OUTCOME_LABELS.get(outcome, outcome)}: Bonferroni-significant = {n_bonf}")
 
     summary = {
         "outcomes": outcomes,
@@ -157,7 +157,7 @@ def main():
     for outcome, df in bonf["results"].items():
         sig = df[df["significant_global_bonferroni"]]
         summary["per_outcome"][outcome] = {
-            "label": MIRASOL_OUTCOME_LABELS.get(outcome, outcome),
+            "label": ABCD_OUTCOME_LABELS.get(outcome, outcome),
             "n_tested": len(df),
             "n_nominal_05": int(df["significant_05"].sum()),
             "n_bonferroni": int(sig.shape[0]),
